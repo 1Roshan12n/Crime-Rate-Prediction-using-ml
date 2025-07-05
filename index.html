@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crime Rate Prediction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .form-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .result-section {
+            background-color: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .error-alert {
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Crime Rate Prediction System</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-section">
+                    <h3>Train Model</h3>
+                    <p>Upload a CSV file with crime data to train the model.</p>
+                    <form id="train-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="trainingData" class="form-label">Training Data (CSV)</label>
+                            <input type="file" class="form-control" id="trainingData" name="data_file" accept=".csv">
+                            <div class="form-text">CSV should contain columns: population, poverty_rate, unemployment_rate, median_income, education_level, crime_rate</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Train Model</button>
+                    </form>
+                    <div id="training-result" class="result-section">
+                        <h4>Training Results</h4>
+                        <p id="train-message"></p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p>Training Score: <span id="train-score"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p>Testing Score: <span id="test-score"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="train-error" class="alert alert-danger error-alert" role="alert"></div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="form-section">
+                    <h3>Single Prediction</h3>
+                    <p>Enter values to predict crime rate for a single location.</p>
+                    <form id="predict-form">
+                        <div class="mb-3">
+                            <label for="population" class="form-label">Population</label>
+                            <input type="number" class="form-control" id="population" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="poverty_rate" class="form-label">Poverty Rate (%)</label>
+                            <input type="number" step="0.1" class="form-control" id="poverty_rate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="unemployment_rate" class="form-label">Unemployment Rate (%)</label>
+                            <input type="number" step="0.1" class="form-control" id="unemployment_rate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="median_income" class="form-label">Median Income ($)</label>
+                            <input type="number" class="form-control" id="median_income" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="education_level" class="form-label">Education Level (Years)</label>
+                            <input type="number" step="0.1" class="form-control" id="education_level" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">Predict</button>
+                    </form>
+                    <div id="prediction-result" class="result-section">
+                        <h4>Prediction Result</h4>
+                        <p>Predicted Crime Rate: <span id="prediction-value" class="fw-bold"></span> crimes per 1,000 population</p>
+                        <h5>Feature Importance</h5>
+                        <div id="feature-importance"></div>
+                    </div>
+                    <div id="predict-error" class="alert alert-danger error-alert" role="alert"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="form-section">
+                    <h3>Batch Prediction</h3>
+                    <p>Upload a CSV file with multiple locations to predict crime rates in batch.</p>
+                    <form id="batch-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="batchData" class="form-label">Batch Data (CSV)</label>
+                            <input type="file" class="form-control" id="batchData" name="data_file" accept=".csv">
+                            <div class="form-text">CSV should contain columns: population, poverty_rate, unemployment_rate, median_income, education_level</div>
+                        </div>
+                        <button type="submit" class="btn btn-info">Predict Batch</button>
+                    </form>
+                    <div id="batch-result" class="result-section">
+                        <h4>Batch Prediction Results</h4>
+                        <p id="batch-message"></p>
+                        <p>Output file: <span id="output-file"></span></p>
+                    </div>
+                    <div id="batch-error" class="alert alert-danger error-alert" role="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Train model form submission
+        document.getElementById('train-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                document.getElementById('train-error').style.display = 'none';
+                
+                const response = await fetch('/train', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('train-message').textContent = data.message;
+                    document.getElementById('train-score').textContent = (data.train_score * 100).toFixed(2) + '%';
+                    document.getElementById('test-score').textContent = (data.test_score * 100).toFixed(2) + '%';
+                    document.getElementById('training-result').style.display = 'block';
+                } else {
+                    document.getElementById('train-error').textContent = data.error;
+                    document.getElementById('train-error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('train-error').textContent = 'An error occurred while training the model.';
+                document.getElementById('train-error').style.display = 'block';
+            }
+        });
+
+        // Single prediction form submission
+        document.getElementById('predict-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                population: parseFloat(document.getElementById('population').value),
+                poverty_rate: parseFloat(document.getElementById('poverty_rate').value),
+                unemployment_rate: parseFloat(document.getElementById('unemployment_rate').value),
+                median_income: parseFloat(document.getElementById('median_income').value),
+                education_level: parseFloat(document.getElementById('education_level').value)
+            };
+            
+            try {
+                document.getElementById('predict-error').style.display = 'none';
+                
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('prediction-value').textContent = data.prediction.toFixed(2);
+                    
+                    // Display feature importance
+                    const featureImportanceDiv = document.getElementById('feature-importance');
+                    featureImportanceDiv.innerHTML = '';
+                    
+                    const features = Object.keys(data.features_importance).sort((a, b) => 
+                        data.features_importance[b] - data.features_importance[a]
+                    );
+                    
+                    features.forEach(feature => {
+                        const importance = data.features_importance[feature] * 100;
+                        const featureElement = document.createElement('div');
+                        featureElement.className = 'mb-2';
+                        
+                        featureElement.innerHTML = `
+                            <div class="d-flex justify-content-between">
+                                <span>${feature.replace('_', ' ')}</span>
+                                <span>${importance.toFixed(2)}%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: ${importance}%" 
+                                    aria-valuenow="${importance}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        `;
+                        
+                        featureImportanceDiv.appendChild(featureElement);
+                    });
+                    
+                    document.getElementById('prediction-result').style.display = 'block';
+                } else {
+                    document.getElementById('predict-error').textContent = data.error;
+                    document.getElementById('predict-error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('predict-error').textContent = 'An error occurred while making the prediction.';
+                document.getElementById('predict-error').style.display = 'block';
+            }
+        });
+
+        // Batch prediction form submission
+        document.getElementById('batch-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                document.getElementById('batch-error').style.display = 'none';
+                
+                const response = await fetch('/batch_predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('batch-message').textContent = data.message;
+                    document.getElementById('output-file').textContent = data.output_file;
+                    document.getElementById('batch-result').style.display = 'block';
+                } else {
+                    document.getElementById('batch-error').textContent = data.error;
+                    document.getElementById('batch-error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('batch-error').textContent = 'An error occurred while making batch predictions.';
+                document.getElementById('batch-error').style.display = 'block';
+            }
+        });
+    </script>
+    <center><p>designed by S Roshan Kumar</p></center>
+</body>
+</html>
